@@ -58,3 +58,38 @@ export async function analyzeContentForGeo(content: string, targetTopic: string)
     throw error;
   }
 }
+
+export async function rewriteContentForGeo(content: string, topic: string, suggestions: string[]): Promise<string> {
+  try {
+    const model = "gemini-2.5-flash";
+    const prompt = `
+      You are an expert editor specializing in Generative Engine Optimization (GEO). 
+      Rewrite the following content to rank better in AI search results for the topic "${topic}".
+      
+      Apply these specific improvements based on the analysis:
+      ${suggestions.map(s => `- ${s}`).join('\n')}
+
+      Guidelines:
+      - Add clear, direct answers to common questions about the topic.
+      - Use structured data formatting (bullet points, tables) where appropriate.
+      - Cite authoritative sources or statistics if relevant (you can use placeholders like [Source: X] if real data isn't available).
+      - Maintain the original tone but make it more authoritative and concise.
+      
+      Original Content:
+      "${content.substring(0, 10000)}"
+    `;
+
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: prompt,
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from AI");
+    
+    return text;
+  } catch (error) {
+    console.error("Error rewriting content:", error);
+    throw error;
+  }
+}

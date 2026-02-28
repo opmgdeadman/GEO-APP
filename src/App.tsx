@@ -5,19 +5,40 @@
 
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, Search, BarChart3, FileText, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { analyzeContentForGeo, GeoAnalysisResult } from './services/gemini';
+import { Sparkles, Search, BarChart3, FileText, ArrowRight, CheckCircle2, AlertCircle, Loader2, RefreshCw, Copy, Check } from 'lucide-react';
+import { analyzeContentForGeo, rewriteContentForGeo, GeoAnalysisResult } from './services/gemini';
+
+const SAMPLE_TOPIC = "How to make cold brew coffee";
+const SAMPLE_CONTENT = `
+Cold brew coffee is really popular these days. It is different from iced coffee because you don't use hot water. You just let the grounds sit in water for a long time.
+
+To make it, you need coffee beans. Grind them up but not too fine. Put them in a jar with water. Leave it on the counter or in the fridge for like 12 to 24 hours. Then strain it.
+
+It tastes smoother than regular coffee because it has less acid. You can add milk or sugar if you want. It keeps in the fridge for a while.
+`;
 
 export default function App() {
   const [content, setContent] = useState('');
   const [topic, setTopic] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isRewriting, setIsRewriting] = useState(false);
   const [result, setResult] = useState<GeoAnalysisResult | null>(null);
+  const [rewrittenContent, setRewrittenContent] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const loadSample = () => {
+    setTopic(SAMPLE_TOPIC);
+    setContent(SAMPLE_CONTENT);
+    setResult(null);
+    setRewrittenContent(null);
+  };
 
   const handleAnalyze = async () => {
     if (!content.trim() || !topic.trim()) return;
     
     setIsAnalyzing(true);
+    setResult(null);
+    setRewrittenContent(null);
     try {
       const data = await analyzeContentForGeo(content, topic);
       setResult(data);
@@ -27,6 +48,28 @@ export default function App() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleRewrite = async () => {
+    if (!content || !topic || !result) return;
+
+    setIsRewriting(true);
+    try {
+      const rewritten = await rewriteContentForGeo(content, topic, result.suggestions);
+      setRewrittenContent(rewritten);
+    } catch (error) {
+      console.error(error);
+      alert("Failed to rewrite content.");
+    } finally {
+      setIsRewriting(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (!rewrittenContent) return;
+    navigator.clipboard.writeText(rewrittenContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -39,8 +82,16 @@ export default function App() {
             </div>
             <span className="font-bold text-xl tracking-tight">GEO Optimizer</span>
           </div>
-          <div className="text-sm font-medium text-slate-500">
-            Generative Engine Optimization
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={loadSample}
+              className="text-sm font-medium text-violet-600 hover:text-violet-700 hover:bg-violet-50 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Load Sample Content
+            </button>
+            <div className="text-sm font-medium text-slate-500 hidden sm:block">
+              Generative Engine Optimization
+            </div>
           </div>
         </div>
       </nav>
@@ -190,7 +241,64 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                  
+                  {!rewrittenContent && (
+                    <button
+                      onClick={handleRewrite}
+                      disabled={isRewriting}
+                      className="mt-6 w-full bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white font-semibold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      {isRewriting ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Rewriting Content...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-5 h-5" />
+                          Rewrite Content with AI
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
+
+                {/* Rewritten Content */}
+                {rewrittenContent && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white p-6 rounded-2xl shadow-sm border border-violet-200 ring-4 ring-violet-50"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-violet-900 flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-violet-600" />
+                        Optimized Content
+                      </h3>
+                      <button
+                        onClick={copyToClipboard}
+                        className="text-sm font-medium text-slate-500 hover:text-violet-600 flex items-center gap-1.5 transition-colors"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="prose prose-slate prose-sm max-w-none bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <pre className="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed">
+                        {rewrittenContent}
+                      </pre>
+                    </div>
+                  </motion.div>
+                )}
 
               </motion.div>
             ) : (
@@ -202,6 +310,12 @@ export default function App() {
                 <p className="max-w-md mx-auto">
                   Enter your content and target topic to see how AI engines interpret your work.
                 </p>
+                <button 
+                  onClick={loadSample}
+                  className="mt-6 text-violet-600 font-medium hover:underline"
+                >
+                  Try with a sample topic
+                </button>
               </div>
             )}
           </div>
